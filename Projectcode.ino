@@ -1,133 +1,251 @@
-#include "HX711.h" //Including HX711 library for weight measurements
+#include <WiFi.h>
+#include <ESPAsyncWebServer.h>
+#include <HX711.h>
+
+// Pin definitions
+#define RED_LED   22 
+#define YEL_LED   23 
+
+#define BUZZER_PIN 15
+
+#define TRIG_PIN  12
+#define ECHO_PIN  14
+
+#define MQ2_PIN 33
 
 
-//Leds
-#define RED_LED   26 // ESP32 pin 26 connected to LED's pin
-#define YEL_LED   25 // ESP32 pin 25 connected to LED's pin
+#define DT_PIN 4   
+#define SCK_PIN 5  
 
-//Buzzer
-#define BUZZER_PIN 27 // ESP32 pin 27 connected to BUZZER's pin
-
-//Ultrasonic Sensor Definitions
-#define TRIG_PIN  12 // ESP32 pin 12 connected to Ultrasonic Sensor's TRIG pin
-#define ECHO_PIN  14 // ESP32 pin 14 connected to Ultrasonic Sensor's ECHO pin
-#define DISTANCE_THRESHOLD 50
-#define almostfull 10  // centimeters
-
-// variables will change:
-float duration_us, distance_cm;
-
-//Gas Sensor Definitions
-#define MQ2_PIN 33  // 33 Pin connected to gas sensor
-int thresHold = 580;
-
-//Load Cell Definitions
-#define DT_PIN 4   // Pin connected to HX711  DT
-#define SCK_PIN 5  // Pin connected to HX711  SCK
+// Constants and variables
 HX711 scale;
-float weight = 0;               // Variable to store the weight
-float weightThreshold = 1000;   // Weight threshold in grams
+float weight = 0;               
+float weightThreshold = 1000;   
 float calibration_factor = -7500;
+float duration_us, distance_cm;
+int gasValue = 350;
+const char* ssid = "Emre";
+const char* password = "Surfyapiyom31.";
 
+AsyncWebServer server(80);
+
+// HTML content
+const char* htmlContent = R"rawliteral(
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SMART WASTE SYSTEM</title>
+  <link rel="stylesheet" href="/design.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body>
+  <div class="container">
+    <h1>SMART WASTE ATU</h1>
+    <div class="sensor-data">
+      <div class="data" id="distance">Distance: -- cm</div>
+      <div class="data" id="weight">Weight: -- g</div>
+      <div class="data" id="gas">Gas Value: --</div>
+    </div>
+    <div class="status">
+      <div id="statusMessage" class="status-message">Waiting for data...</div>
+    </div>
+  </div>
+  <script>
+    setInterval(() => {
+      fetch('/getSensorData')
+        .then(response => response.json())
+        .then(data => {
+          document.getElementById('distance').innerHTML = `<i class="fa-solid fa-arrows-up-down"></i>   Distance: ${data.distance} cm`;
+          document.getElementById('weight').innerHTML = `<i class="fa-solid fa-weight-hanging"></i>   Weight: ${data.weight} g`;
+          document.getElementById('gas').innerHTML = `<i class="fa-solid fa-fire"></i>   Gas Value: ${data.gasValue}`;
+          
+          // Update status message based on sensor data
+          let statusMessage = '';
+          if (data.distance < 10) {
+            statusMessage = 'Almost Full!';
+            document.getElementById('statusMessage').style.backgroundColor = '#ff6666'; // Red
+          } else if (data.distance < 50) {
+            statusMessage = 'Bin %70 FULL';
+            document.getElementById('statusMessage').style.backgroundColor = '#ffcc00'; // Yellow
+          } else {
+            statusMessage = 'Bin is Empty';
+            document.getElementById('statusMessage').style.backgroundColor = '#66cc66'; // Green
+          }
+          
+          document.getElementById('statusMessage').innerText = statusMessage;
+        });
+    }, 1000); // Update every second
+  </script>
+</body>
+</html>
+)rawliteral";
+
+//CSS content
+const char* cssContent = R"rawliteral(
+body {
+  font-family: 'Arial', sans-serif;
+  background-color: #f1f1f1;
+  color: #333;
+  margin: 0;
+  padding: 20px;
+}
+.container {
+  text-align: center;
+  max-width: 900px;
+  margin: auto;
+  padding: 20px;
+  background-color: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0px 0px 15px rgba(0, 0, 0, 0.1);
+}
+h1 {
+  color: #4CAF50;
+  font-size: 36px;
+  margin-bottom: 20px;
+}
+.sensor-data {
+  margin: 20px 0;
+}
+.data {
+  font-size: 24px;
+  margin: 15px 0;
+  padding: 10px;
+  background-color: #f9f9f9;
+  border-radius: 5px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+/* Icon styles */
+.data i {
+  margin-right: 10px; /* Space between icon and text */
+  font-size: 24px; /* Make the icon larger */
+  color: #007bff; /* Blue color */
+}
+
+/* Change icon colors based on type */
+#distance i {
+  color: #28a745; /* Green */
+}
+
+#weight i {
+  color: #ff9800; /* Orange */
+}
+
+#gas i {
+  color: #e63946; /* Red */
+}
+
+.status-message {
+  font-size: 22px;
+  padding: 15px;
+  color: #ffffff;
+  margin-top: 20px;
+  border-radius: 5px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  transition: background-color 0.3s ease;
+}
+)rawliteral";
 
 void setup() {
-  Serial.begin (9600);       // initialize serial port
+  Serial.begin(115200);
 
-  // Setup Ultrasonic Sensor and Leds 
-  pinMode(TRIG_PIN, OUTPUT); // set ESP32 pin to output mode
-  pinMode(ECHO_PIN, INPUT);  // set ESP32 pin to input mode
+  // Setup pins
+  pinMode(TRIG_PIN, OUTPUT); 
+  pinMode(ECHO_PIN, INPUT);  
   pinMode(RED_LED, OUTPUT);
-  pinMode(YEL_LED, OUTPUT);  // set ESP32 pin to output mode
-
-  // Setup Buzzer
+  pinMode(YEL_LED, OUTPUT);
   pinMode(BUZZER_PIN, OUTPUT);
-  digitalWrite(BUZZER_PIN, LOW);
+  
+  // Initialize WiFi
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.println("Connecting to WiFi...");
+  }
+  Serial.println("Connected to WiFi");
+  Serial.print("IP Address: ");
+  Serial.println(WiFi.localIP());  // printing IP address
 
-  // Setup HX711
-  scale.begin(DT_PIN, SCK_PIN); // Initialize HX711 with the defined pins
-  scale.set_scale(calibration_factor);            // Set scale 
-  scale.tare();                 // Reset the scale to zero
+  // Initialize HX711
+  scale.begin(DT_PIN, SCK_PIN); 
+  scale.set_scale(calibration_factor);
+  scale.tare();
 
- 
-  Serial.println("Warming up the MQ2 sensor\n");
-  delay(20000); //Delay for warming up the mq2 sensor
+  // Serving the HTML page
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send(200, "text/html", htmlContent);
+  });
+
+  // Serving the CSS file
+  server.on("/design.css", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send(200, "text/css", cssContent);
+  });
+
+  // API to get sensor data (distance, weight, gas)
+  server.on("/getSensorData", HTTP_GET, [](AsyncWebServerRequest *request){
+    String sensorData = "{\"distance\": " + String(distance_cm) + ", \"weight\": " + String(weight) + ", \"gasValue\": " + String(gasValue) + "}";
+    request->send(200, "application/json", sensorData);
+  });
+
+  // Start the server
+  server.begin();
 }
 
 void loop() {
-  // generate pulse to TRIG pin
+  // Ultrasonic Sensor (distance measurement)
   digitalWrite(TRIG_PIN, HIGH);
   delayMicroseconds(10);
   digitalWrite(TRIG_PIN, LOW);
+  duration_us = pulseIn(ECHO_PIN, HIGH);
+  distance_cm = 0.017 * duration_us;
 
-  //Getting the gas value
-  int gasValue = analogRead(MQ2_PIN);
+  // Gas Sensor reading
+  gasValue = analogRead(MQ2_PIN);
 
-    if (scale.is_ready()) {
-      weight = scale.get_units(10); // Get the average of 10 readings for stability
-    } else {
-        Serial.println("HX711 not found. Check wiring.");
-        weight = -1; // Error value
-    }
+  // HX711 load cell reading (weight)
+  if (scale.is_ready()) {
+    weight = scale.get_units(10);  // Get average of 10 readings
+  }
 
-    // measure duration of pulse from ECHO pin
-    duration_us = pulseIn(ECHO_PIN, HIGH);
-    // calculate the distance
-    distance_cm = 0.017 * duration_us;
-
-  if (distance_cm < DISTANCE_THRESHOLD)
-  {
-
-    if(distance_cm < almostfull)
-    {
-  
-      digitalWrite(RED_LED, HIGH);
-      delay(100);
-      digitalWrite(RED_LED, LOW);
-      delay(100);
-      digitalWrite(RED_LED, HIGH);
-    
-    }
-
-    digitalWrite(RED_LED, HIGH);
-    digitalWrite(YEL_LED, LOW);
-    
-  } 
- 
-  else
-  {
+  // Realtime LED and Buzzer reactions
+  if (distance_cm < 10) {
+    digitalWrite(RED_LED, HIGH);   // Turn on red LED
+    digitalWrite(YEL_LED, LOW);    // Turn off yellow LED
+    digitalWrite(BUZZER_PIN, HIGH); // Turn on buzzer
+    delay(20);
     digitalWrite(RED_LED, LOW);
-    digitalWrite(YEL_LED, HIGH);
+  } else if (distance_cm < 50) {
+    digitalWrite(RED_LED, HIGH);   // Turn on red LED
+    digitalWrite(YEL_LED, LOW);   // Turn on yellow LED
+    digitalWrite(BUZZER_PIN, LOW); // Turn off buzzer
+  } else {
+    digitalWrite(RED_LED, LOW);    // Turn off red LED
+    digitalWrite(YEL_LED, HIGH);   // Turn on yellow LED
+    digitalWrite(BUZZER_PIN, LOW); // Turn off buzzer
   }
 
-  if(gasValue > thresHold)
-  {
-    Serial.println("Gas is Present\n");
-  }
-  else
-  {
-    Serial.println("Gas is not present\n");
+  if (gasValue > 580) {
+    Serial.println("Gas is Present");
+  } else {
+    Serial.println("Gas is not Present");
   }
 
-  // Handle weight threshold logic
   if (weight > weightThreshold) {
     Serial.println("Weight limit exceeded!");
-    digitalWrite(BUZZER_PIN, HIGH); // Turn on buzzer
-  }else{
-    digitalWrite(BUZZER_PIN, LOW); // Turn on buzzer
+    digitalWrite(BUZZER_PIN, HIGH); // Turn on buzzer if weight exceeds limit
+  } else {
+    digitalWrite(BUZZER_PIN, LOW); // Turn off buzzer if weight is normal
   }
 
-  Serial.println("MQ2 sensor AO value: \n");
-  Serial.println(gasValue);
-   
-
-  // print the value to Serial Monitor
-  Serial.print("distance: ");
+  // Output data 
+  Serial.print("Distance: ");
   Serial.print(distance_cm);
-  Serial.println(" cm");
-
-  Serial.print("Weight: ");
+  Serial.print(" cm, Weight: ");
   Serial.print(weight);
-  Serial.println(" grams");
+  Serial.print(" g, Gas Value: ");
+  Serial.println(gasValue);
 
-  delay(500);
+  delay(200); // Short delay 
 }
