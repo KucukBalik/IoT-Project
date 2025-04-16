@@ -51,6 +51,12 @@ const char* htmlContent = R"rawliteral(
     <div class="status">
       <div id="statusMessage" class="status-message">Waiting for data...</div>
     </div>
+    <div class="status">
+      <div id="gasStatusMessage" class="status-message">Waiting for data...</div>
+    </div>
+    <div>
+      <div id="weightStatusMessage" class="status-message">Waiting for data...</div>
+    </div>
   </div>
   <script>
     setInterval(() => {
@@ -75,6 +81,31 @@ const char* htmlContent = R"rawliteral(
           }
           
           document.getElementById('statusMessage').innerText = statusMessage;
+
+
+        let gasStatusMessage = '';
+          if (data.gasValue < 300) {
+            gasStatusMessage = 'Gas is detected';
+            document.getElementById('gasStatusMessage').style.backgroundColor = '#ff6666'; // Red
+          }else {
+            gasStatusMessage = 'No gas in the bin';
+            document.getElementById('gasStatusMessage').style.backgroundColor = '#66cc66'; // Green
+          }
+          
+          document.getElementById('gasStatusMessage').innerText = gasStatusMessage;
+
+          let weightStatusMessage = '';
+          if (data.weight > 100) {
+            weightStatusMessage = 'Bin is too HEAVY';
+            document.getElementById('weightStatusMessage').style.backgroundColor = '#ff6666'; // Red
+          }else {
+            weightStatusMessage = 'Bin is light.';
+            document.getElementById('weightStatusMessage').style.backgroundColor = '#66cc66'; // Green
+          }
+          
+          document.getElementById('weightStatusMessage').innerText = weightStatusMessage;
+
+
         });
     }, 1000); // Update every second
   </script>
@@ -119,9 +150,9 @@ h1 {
 
 /* Icon styles */
 .data i {
-  margin-right: 10px; /* Space between icon and text */
-  font-size: 24px; /* Make the icon larger */
-  color: #007bff; /* Blue color */
+  margin-right: 10px; 
+  font-size: 24px; 
+  color: #007bff; 
 }
 
 /* Change icon colors based on type */
