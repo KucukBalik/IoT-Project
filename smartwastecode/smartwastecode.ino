@@ -51,6 +51,12 @@ const char* htmlContent = R"rawliteral(
     <div class="status">
       <div id="statusMessage" class="status-message">Waiting for data...</div>
     </div>
+    <div class="status">
+      <div id="gasStatusMessage" class="status-message">Waiting for data...</div>
+    </div>
+    <div>
+      <div id="weightStatusMessage" class="status-message">Waiting for data...</div>
+    </div>
   </div>
   <script>
     setInterval(() => {
@@ -75,6 +81,31 @@ const char* htmlContent = R"rawliteral(
           }
           
           document.getElementById('statusMessage').innerText = statusMessage;
+
+
+        let gasStatusMessage = '';
+          if (data.gasValue < 300) {
+            gasStatusMessage = 'Gas is detected';
+            document.getElementById('gasStatusMessage').style.backgroundColor = '#ff6666'; // Red
+          }else {
+            gasStatusMessage = 'No gas in the bin';
+            document.getElementById('gasStatusMessage').style.backgroundColor = '#66cc66'; // Green
+          }
+          
+          document.getElementById('gasStatusMessage').innerText = gasStatusMessage;
+
+          let weightStatusMessage = '';
+          if (data.weight > 100) {
+            weightStatusMessage = 'Bin is too HEAVY';
+            document.getElementById('weightStatusMessage').style.backgroundColor = '#ff6666'; // Red
+          }else {
+            weightStatusMessage = 'Bin is light.';
+            document.getElementById('weightStatusMessage').style.backgroundColor = '#66cc66'; // Green
+          }
+          
+          document.getElementById('weightStatusMessage').innerText = weightStatusMessage;
+
+
         });
     }, 1000); // Update every second
   </script>
@@ -119,9 +150,9 @@ h1 {
 
 /* Icon styles */
 .data i {
-  margin-right: 10px; /* Space between icon and text */
-  font-size: 24px; /* Make the icon larger */
-  color: #007bff; /* Blue color */
+  margin-right: 10px; 
+  font-size: 24px; 
+  color: #007bff; 
 }
 
 /* Change icon colors based on type */
@@ -216,14 +247,18 @@ void loop() {
     digitalWrite(BUZZER_PIN, HIGH); // Turn on buzzer
     delay(20);
     digitalWrite(RED_LED, LOW);
+    delay(100);
+
   } else if (distance_cm < 50) {
     digitalWrite(RED_LED, HIGH);   // Turn on red LED
     digitalWrite(YEL_LED, LOW);   // Turn on yellow LED
-    digitalWrite(BUZZER_PIN, LOW); // Turn off buzzer
+    digitalWrite(BUZZER_PIN, LOW);// Turn off buzzer
+    delay(100); 
   } else {
     digitalWrite(RED_LED, LOW);    // Turn off red LED
     digitalWrite(YEL_LED, HIGH);   // Turn on yellow LED
-    digitalWrite(BUZZER_PIN, LOW); // Turn off buzzer
+    digitalWrite(BUZZER_PIN, LOW);// Turn off buzzer
+    delay(100); 
   }
 
   if (gasValue > 580) {
@@ -247,6 +282,6 @@ void loop() {
   Serial.print(" g, Gas Value: ");
   Serial.println(gasValue);
 
-  delay(200); // Short delay 
+   // Short delay 
 }
 
