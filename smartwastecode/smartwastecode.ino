@@ -247,14 +247,18 @@ void loop() {
     digitalWrite(BUZZER_PIN, HIGH); // Turn on buzzer
     delay(20);
     digitalWrite(RED_LED, LOW);
+    delay(100);
+
   } else if (distance_cm < 50) {
     digitalWrite(RED_LED, HIGH);   // Turn on red LED
     digitalWrite(YEL_LED, LOW);   // Turn on yellow LED
-    digitalWrite(BUZZER_PIN, LOW); // Turn off buzzer
+    digitalWrite(BUZZER_PIN, LOW);// Turn off buzzer
+    delay(100); 
   } else {
     digitalWrite(RED_LED, LOW);    // Turn off red LED
     digitalWrite(YEL_LED, HIGH);   // Turn on yellow LED
-    digitalWrite(BUZZER_PIN, LOW); // Turn off buzzer
+    digitalWrite(BUZZER_PIN, LOW);// Turn off buzzer
+    delay(100); 
   }
 
   if (gasValue > 580) {
@@ -278,6 +282,6 @@ void loop() {
   Serial.print(" g, Gas Value: ");
   Serial.println(gasValue);
 
-  delay(200); // Short delay 
+   // Short delay 
 }
 
